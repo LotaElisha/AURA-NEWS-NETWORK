@@ -1,15 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Radio } from 'lucide-react';
+import { Radio, Mic } from 'lucide-react';
 
 interface AnchorFeedProps {
   isBroadcasting: boolean;
   currentSegment?: { headline: string; content: string };
   isSpeaking: boolean;
   isLiveMode?: boolean;
+  isMarcusSpeaking?: boolean;
+  isMarcusLiveConnected?: boolean;
 }
 
-export const AnchorFeed: React.FC<AnchorFeedProps> = ({ isBroadcasting, currentSegment, isSpeaking, isLiveMode }) => {
+export const AnchorFeed: React.FC<AnchorFeedProps> = ({ 
+  isBroadcasting, 
+  currentSegment, 
+  isSpeaking, 
+  isLiveMode,
+  isMarcusSpeaking = false,
+  isMarcusLiveConnected = false
+}) => {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -24,7 +33,7 @@ export const AnchorFeed: React.FC<AnchorFeedProps> = ({ isBroadcasting, currentS
       
       {/* Overlay Gradients */}
       <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-zinc-950/50" />
-
+ 
       {/* Dual Anchor Split View */}
       <div className="absolute inset-0 flex">
         {/* AI Anchor (Left) */}
@@ -44,7 +53,7 @@ export const AnchorFeed: React.FC<AnchorFeedProps> = ({ isBroadcasting, currentS
           
           {/* Speaking Indicator for Anchor */}
           {isSpeaking && (
-            <div className="absolute bottom-4 left-4 flex gap-1">
+            <div className="absolute bottom-4 left-4 flex gap-1 z-10">
               {[1, 2, 3].map(i => (
                 <motion.div
                   key={i}
@@ -57,7 +66,7 @@ export const AnchorFeed: React.FC<AnchorFeedProps> = ({ isBroadcasting, currentS
           )}
           
           <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-zinc-950 to-transparent" />
-          <div className="absolute bottom-4 left-4 text-[10px] font-bold uppercase tracking-widest text-blue-400 bg-zinc-950/50 px-2 py-1 rounded">
+          <div className="absolute bottom-4 left-4 text-[10px] font-bold uppercase tracking-widest text-blue-400 bg-zinc-950/50 px-2 py-1 rounded z-10">
             Aura • AI Anchor
           </div>
         </div>
@@ -65,8 +74,8 @@ export const AnchorFeed: React.FC<AnchorFeedProps> = ({ isBroadcasting, currentS
         {/* Guest/Co-Anchor (Right) */}
         <div className="flex-1 relative overflow-hidden">
           <motion.div 
-            animate={{ scale: [1, 1.005, 1] }}
-            transition={{ repeat: Infinity, duration: 5 }}
+            animate={isMarcusSpeaking ? { scale: [1, 1.01, 1], filter: ['brightness(1)', 'brightness(1.1)', 'brightness(1)'] } : { scale: [1, 1.005, 1] }}
+            transition={{ repeat: Infinity, duration: isMarcusSpeaking ? 3 : 5 }}
             className="absolute inset-0"
           >
             <img 
@@ -77,15 +86,36 @@ export const AnchorFeed: React.FC<AnchorFeedProps> = ({ isBroadcasting, currentS
             />
           </motion.div>
           
+          {/* Speaking Indicator for Co-Anchor */}
+          {isMarcusSpeaking && (
+            <div className="absolute bottom-4 left-4 flex gap-1 z-10">
+              {[1, 2, 3].map(i => (
+                <motion.div
+                  key={i}
+                  animate={{ height: [4, 12, 4] }}
+                  transition={{ repeat: Infinity, duration: 0.4, delay: i * 0.1 }}
+                  className="w-1 bg-emerald-500 rounded-full"
+                />
+              ))}
+            </div>
+          )}
+
+          {isMarcusLiveConnected && (
+            <div className="absolute top-4 right-4 bg-emerald-600 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest flex items-center gap-1 z-10 animate-pulse">
+              <Mic size={8} />
+              Live Connected
+            </div>
+          )}
+          
           <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-zinc-950 to-transparent" />
-          <div className="absolute bottom-4 left-4 text-[10px] font-bold uppercase tracking-widest text-zinc-400 bg-zinc-950/50 px-2 py-1 rounded">
+          <div className="absolute bottom-4 left-4 text-[10px] font-bold uppercase tracking-widest text-zinc-400 bg-zinc-950/50 px-2 py-1 rounded z-10">
             Marcus • Field Correspondent
           </div>
         </div>
       </div>
 
       {/* UI Overlays */}
-      <div className="absolute top-6 left-6 flex flex-col gap-2">
+      <div className="absolute top-6 left-6 flex flex-col gap-2 z-10">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-red-600 px-3 py-1 rounded-sm font-bold text-xs uppercase tracking-widest">
             <Radio size={14} className="animate-pulse" />
@@ -102,7 +132,7 @@ export const AnchorFeed: React.FC<AnchorFeedProps> = ({ isBroadcasting, currentS
         </div>
       </div>
 
-      <div className="absolute top-6 right-6">
+      <div className="absolute top-6 right-6 z-10">
         <div className="text-right">
           <div className="text-xl font-display font-bold tracking-tighter">
             {time.toLocaleTimeString([], { hour12: false })}
@@ -120,9 +150,9 @@ export const AnchorFeed: React.FC<AnchorFeedProps> = ({ isBroadcasting, currentS
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -100, opacity: 0 }}
-            className="absolute bottom-12 left-0 right-0 px-12"
+            className="absolute bottom-12 left-0 right-0 px-12 z-10"
           >
-            <div className="bg-zinc-950/90 backdrop-blur-xl border-l-8 border-blue-600 p-6 shadow-2xl max-w-2xl">
+            <div className="bg-zinc-950/90 backdrop-blur-xl border-l-8 border-blue-600 p-6 shadow-2xl max-w-2xl relative group">
               <h2 className="text-blue-400 text-xs font-bold uppercase tracking-[0.2em] mb-2">Breaking Update</h2>
               <h1 className="text-2xl font-display font-bold leading-tight tracking-tight">
                 {currentSegment.headline}
@@ -133,14 +163,14 @@ export const AnchorFeed: React.FC<AnchorFeedProps> = ({ isBroadcasting, currentS
       </AnimatePresence>
 
       {/* Audio Visualizer (Bottom) */}
-      {isSpeaking && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 flex items-end justify-center gap-px">
+      {(isSpeaking || isMarcusSpeaking) && (
+        <div className="absolute bottom-0 left-0 right-0 h-1 flex items-end justify-center gap-px z-10">
           {Array.from({ length: 100 }).map((_, i) => (
             <motion.div
               key={i}
               animate={{ height: [`${Math.random() * 20}%`, `${Math.random() * 100}%`, `${Math.random() * 20}%`] }}
               transition={{ repeat: Infinity, duration: 0.2 }}
-              className="flex-1 bg-blue-500/30"
+              className={`flex-1 ${isMarcusSpeaking ? 'bg-emerald-500/30' : 'bg-blue-500/30'}`}
             />
           ))}
         </div>
