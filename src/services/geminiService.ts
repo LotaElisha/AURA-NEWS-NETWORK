@@ -3,6 +3,51 @@ export interface NewsHeadline {
   summary: string;
   source: string;
   url: string;
+  category?: string;
+}
+
+export interface FullArticle {
+  subtitle: string;
+  body: string[];
+  keyFacts: string[];
+}
+
+export function isSystemAlert(h: NewsHeadline): boolean {
+  return h.source === "System Alert" || h.title.includes("Demo Mode") || h.title.includes("ANGALIZO:");
+}
+
+// Deterministic editorial placeholder image for a story (no licensed photos available).
+export function storyImage(title: string, width = 900, height = 560): string {
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) {
+    hash = (hash * 31 + title.charCodeAt(i)) >>> 0;
+  }
+  return `https://picsum.photos/seed/aura${hash}/${width}/${height}`;
+}
+
+export async function fetchTrendingNews(language: string = "English"): Promise<NewsHeadline[]> {
+  try {
+    const res = await fetch(`/api/trending?language=${encodeURIComponent(language)}`);
+    if (!res.ok) {
+      throw new Error(`HTTP error ${res.status}`);
+    }
+    return await res.json();
+  } catch (error) {
+    console.error("Error fetching trending news:", error);
+    return [];
+  }
+}
+
+export async function generateFullArticle(story: NewsHeadline, language: string = "English"): Promise<FullArticle> {
+  const res = await fetch("/api/article", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: story.title, summary: story.summary, source: story.source, language }),
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP error ${res.status}`);
+  }
+  return await res.json();
 }
 
 export interface NewsScript {
