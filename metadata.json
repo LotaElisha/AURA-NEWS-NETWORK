@@ -1,0 +1,5 @@
+{
+  "name": "Aura News Network",
+  "description": "An AI-powered news anchor that generates and broadcasts the latest world news using Gemini AI and text-to-speech.",
+  "requestFramePermissions": ["microphone"]
+}
