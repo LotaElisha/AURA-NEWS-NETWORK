@@ -29,6 +29,18 @@ async function startServer() {
     return aiInstance;
   }
 
+  // --- Simple in-memory response cache (protects Gemini quota, speeds up page loads) ---
+  const responseCache = new Map<string, { data: any; expires: number }>();
+  function getCached(key: string): any | null {
+    const entry = responseCache.get(key);
+    if (entry && entry.expires > Date.now()) return entry.data;
+    responseCache.delete(key);
+    return null;
+  }
+  function setCached(key: string, data: any, ttlMs = 5 * 60 * 1000) {
+    responseCache.set(key, { data, expires: Date.now() + ttlMs });
+  }
+
   // --- Offline Fallbacks & Retries ---
   async function callGeminiWithRetry(fn: () => Promise<any>, retries = 2, delay = 1000): Promise<any> {
     for (let i = 0; i <= retries; i++) {
@@ -145,8 +157,123 @@ async function startServer() {
   }
 
   // --- API Routes ---
+
+  // Top trending stories worldwide, across all categories — powers the website front page.
+  app.get("/api/trending", async (req, res) => {
+    const { language = "English" } = req.query;
+    const cacheKey = `trending:${language}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
+    const currentTime = new Date().toISOString();
+
+    const fetchWithSearch = async () => {
+      const ai = getAi();
+      return await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: `Current Time: ${currentTime}.
+        Please search Google News to find the 10 most trending, most talked-about breaking news stories in the world RIGHT NOW, across all topics (world affairs, politics, business, technology, AI, science, health, sports, entertainment).
+        Focus on real, current events reported in the last 1-12 hours, ordered from most to least trending.
+        Provide the response in ${language}.
+        Provide a JSON array of objects with 'title', 'summary' (2-3 sentences), 'source', 'url', and 'category' (one of: General, Politics, Business, Technology, AI News, Science, Health, Sports, Entertainment).`,
+        config: {
+          tools: [{ googleSearch: {} }],
+          responseMimeType: "application/json",
+        },
+      });
+    };
+
+    const fetchWithoutSearch = async () => {
+      const ai = getAi();
+      return await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: `Current Time: ${currentTime}.
+        Since live search is unavailable, generate 10 highly realistic and plausible trending world news stories for right now, across varied topics.
+        Provide the response in ${language}.
+        Provide a JSON array of objects with 'title', 'summary' (2-3 sentences), 'source', 'url', and 'category' (one of: General, Politics, Business, Technology, AI News, Science, Health, Sports, Entertainment). Make source names look like reputable outlets.`,
+        config: {
+          responseMimeType: "application/json",
+        },
+      });
+    };
+
+    try {
+      let response;
+      try {
+        response = await callGeminiWithRetry(fetchWithSearch, 2, 1000);
+      } catch (searchError: any) {
+        console.warn("Trending search fetch failed, falling back to generation without search...", searchError);
+        response = await callGeminiWithRetry(fetchWithoutSearch, 2, 1000);
+      }
+
+      const text = response.text;
+      if (!text) {
+        return res.json(getOfflineFallbackNews("General", language as string));
+      }
+      const data = JSON.parse(text);
+      setCached(cacheKey, data);
+      res.json(data);
+    } catch (error: any) {
+      console.error("All trending fetch attempts failed. Returning offline fallbacks.", error);
+      res.json(getOfflineFallbackNews("General", language as string));
+    }
+  });
+
+  // Expand a headline into a full publish-ready article for the reader page.
+  app.post("/api/article", async (req, res) => {
+    const { title, summary, source, language = "English" } = req.body;
+    if (!title) return res.status(400).json({ error: "Missing title" });
+
+    const cacheKey = `article:${language}:${title}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
+    const generate = async () => {
+      const ai = getAi();
+      return await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: `You are a senior staff writer at Aura News Network, a professional global news organization.
+        Write a complete, publish-ready news article in ${language} based on this story:
+        Title: ${title}
+        Summary: ${summary || "N/A"}
+        Original source: ${source || "wire services"}
+
+        Respond with a JSON object with this exact structure:
+        - 'subtitle': a one-sentence standfirst/deck below the headline.
+        - 'body': an array of 6-9 paragraphs (strings). Professional, factual news style: lede paragraph first, then context, details, reactions, and outlook. No markdown, plain text paragraphs.
+        - 'keyFacts': an array of 3-5 short bullet-point facts.
+        Maintain strict journalistic tone. Do not invent direct quotes attributed to real named individuals; use paraphrase or attribute to the outlet/officials generally.`,
+        config: {
+          responseMimeType: "application/json",
+        },
+      });
+    };
+
+    try {
+      const response = await callGeminiWithRetry(generate, 2, 1000);
+      const text = response.text;
+      if (!text) throw new Error("No article generated");
+      const data = JSON.parse(text);
+      setCached(cacheKey, data, 15 * 60 * 1000);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error generating article, using fallback:", error);
+      res.json({
+        subtitle: summary || "",
+        body: [
+          summary || title,
+          `This story is developing. Aura News Network is monitoring updates from ${source || "international wire services"} and will expand this report as more information becomes available.`,
+        ],
+        keyFacts: [],
+      });
+    }
+  });
+
   app.get("/api/news", async (req, res) => {
     const { language = "English", category = "General" } = req.query;
+    const cacheKey = `news:${language}:${category}`;
+    const cachedNews = getCached(cacheKey);
+    if (cachedNews) return res.json(cachedNews);
     const currentTime = new Date().toISOString();
 
     const fetchWithSearch = async () => {
@@ -192,7 +319,9 @@ async function startServer() {
       if (!text) {
         return res.json(getOfflineFallbackNews(category as string, language as string));
       }
-      res.json(JSON.parse(text));
+      const data = JSON.parse(text);
+      setCached(cacheKey, data);
+      res.json(data);
     } catch (error: any) {
       console.error("All Gemini news fetch attempts failed. Returning offline fallbacks.", error);
       res.json(getOfflineFallbackNews(category as string, language as string));
