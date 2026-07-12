@@ -414,7 +414,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ language }) => {
       <audio ref={audioRef} className="hidden" />
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col relative">
+      <main className="flex-1 min-w-0 flex flex-col relative">
         {headlines.some(isSystemAlert) && (
           <div className="bg-amber-950/40 border-b border-amber-900/40 px-8 py-2.5 flex items-center justify-between text-xs text-amber-200 backdrop-blur-md z-10">
             <div className="flex items-center gap-2">

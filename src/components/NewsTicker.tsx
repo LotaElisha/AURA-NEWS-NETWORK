@@ -12,7 +12,7 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({ headlines, variant = 'fi
 
   const positionClasses = variant === 'fixed'
     ? 'fixed bottom-0 left-0 right-0 z-50 border-t'
-    : 'relative border-y';
+    : 'relative border-y w-full min-w-0 max-w-full';
 
   return (
     <div className={`${positionClasses} bg-red-700 h-10 flex items-center overflow-hidden border-red-600`}>
